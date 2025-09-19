@@ -1,99 +1,121 @@
-# 경제학과 PC실 예약 시스템
+# PC실 예약 시스템
 
-경제학과 학생들을 위한 PC실 예약 시스템입니다. 회원가입 없이 간편하게 예약할 수 있습니다.
+경제학과 PC실 및 스터디룸 예약 시스템입니다.
 
-## 주요 기능
+## 🚀 Vercel 배포 가이드
 
-### 사용자 기능
-- **간편 예약**: 이름, 학번, 전화번호, 학과만 입력하면 예약 가능
-- **실시간 좌석 현황**: 60개 좌석의 실시간 예약 상태 확인
-- **시간대별 예약**: 18:00-21:00 (1시간 단위)
-- **예약 취소**: 본인 예약 취소 가능
+### 1. Supabase 프로젝트 설정
 
-### 관리자 기능
-- **예약 관리**: 전체 예약 현황 조회 및 강제 취소
-- **공지사항**: 사용자 화면에 공지 배너 표시
-- **예약 제한**: 요일/시간대별 예약 차단 설정
-- **데이터 내보내기**: 엑셀/CSV 형태로 예약 데이터 내보내기
-- **일괄 취소**: 필터링된 예약 일괄 취소 및 안내문자 발송
-- **PIN 관리**: 관리자 PIN 변경
+1. [Supabase](https://supabase.com)에서 새 프로젝트 생성
+2. SQL Editor에서 다음 테이블 생성:
 
-## 기술 스택
+```sql
+-- 예약 테이블
+CREATE TABLE reservations (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  pc_number INTEGER NOT NULL,
+  date DATE NOT NULL,
+  slot_hour INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  student_id TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  department TEXT NOT NULL,
+  applied_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
-- **Frontend**: React 18, TypeScript
-- **Styling**: Tailwind CSS
-- **Build Tool**: Vite
-- **Data Export**: XLSX.js
-- **Storage**: localStorage
+-- 관리자 설정 테이블
+CREATE TABLE admin_settings (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  admin_pin TEXT NOT NULL DEFAULT '1234',
+  notice TEXT,
+  webhook_url TEXT,
+  blocked_weekdays INTEGER[] DEFAULT '{}',
+  blocked_slots INTEGER[] DEFAULT '{}',
+  is_blocked BOOLEAN DEFAULT false,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
-## 프로젝트 구조
+-- 스터디룸 세션 테이블
+CREATE TABLE study_sessions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  room_number INTEGER NOT NULL,
+  leader_name TEXT NOT NULL,
+  leader_student_id TEXT NOT NULL,
+  leader_department TEXT NOT NULL,
+  leader_phone TEXT NOT NULL,
+  others JSONB DEFAULT '[]',
+  duration INTEGER NOT NULL,
+  start_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  end_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 스터디룸 설정 테이블
+CREATE TABLE study_room_settings (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  blocked_weekdays INTEGER[] DEFAULT '{}',
+  blocked_study_hours INTEGER[] DEFAULT '{}',
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- RLS 정책 설정
+ALTER TABLE reservations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admin_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE study_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE study_room_settings ENABLE ROW LEVEL SECURITY;
+
+-- 모든 사용자에게 모든 작업 허용 (개발용)
+CREATE POLICY "Enable all operations for all users" ON reservations FOR ALL USING (true);
+CREATE POLICY "Enable all operations for all users" ON admin_settings FOR ALL USING (true);
+CREATE POLICY "Enable all operations for all users" ON study_sessions FOR ALL USING (true);
+CREATE POLICY "Enable all operations for all users" ON study_room_settings FOR ALL USING (true);
+```
+
+### 2. Vercel 배포
+
+1. GitHub에 코드 푸시
+2. [Vercel](https://vercel.com)에서 프로젝트 import
+3. 환경변수 설정:
+   - `VITE_SUPABASE_URL`: Supabase 프로젝트 URL
+   - `VITE_SUPABASE_ANON_KEY`: Supabase Anon Key
+
+### 3. 환경변수 설정
+
+Vercel 대시보드에서 다음 환경변수를 설정하세요:
 
 ```
-src/
-├── components/          # React 컴포넌트
-│   ├── AdminPanel.tsx   # 관리자 패널
-│   ├── ReservationForm.tsx # 예약 폼
-│   └── SeatGrid.tsx     # 좌석 배치도
-├── hooks/              # 커스텀 훅
-│   ├── useAdmin.ts     # 관리자 상태 관리
-│   └── useBookings.ts  # 예약 상태 관리
-├── types/              # 타입 정의
-│   └── index.ts        # 공통 타입 및 상수
-├── utils/              # 유틸리티 함수
-│   ├── export.ts       # 데이터 내보내기
-│   └── index.ts        # 공통 유틸리티
-├── App.tsx             # 메인 앱 컴포넌트
-├── main.tsx            # 앱 진입점
-└── index.css           # 글로벌 스타일
+VITE_SUPABASE_URL=https://your-project-id.supabase.co
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
-## 설치 및 실행
+## 🛠️ 로컬 개발
 
-### 필수 요구사항
-- Node.js 18.0.0 이상
-- npm 또는 yarn
-
-### 설치
 ```bash
+# 의존성 설치
 npm install
-```
 
-### 개발 서버 실행
-```bash
+# 환경변수 설정 (.env.local 파일 생성)
+cp env.example .env.local
+# .env.local 파일을 편집하여 Supabase 정보 입력
+
+# 개발 서버 실행
 npm run dev
 ```
 
-### 빌드
-```bash
-npm run build
-```
+## 📋 기능
 
-### 미리보기
-```bash
-npm run preview
-```
+- PC실 좌석 예약 (18:00, 19:00, 20:00)
+- 스터디룸 예약 (3-6명, 15-120분)
+- 관리자 패널 (예약 관리, 공지사항, 설정)
+- 데이터 다운로드 (CSV)
+- 실시간 예약 현황
 
-## 사용 방법
+## 🔧 기술 스택
 
-### 기본 예약
-1. 예약 탭에서 개인정보 입력
-2. 날짜 및 시간대 선택
-3. 좌석 배치도에서 원하는 좌석 클릭
-4. "좌석 예약하기" 버튼 클릭
-
-### 관리자 접속
-1. 관리자 탭 클릭
-2. PIN 입력 (기본: 0423)
-3. 관리 기능 사용
-
-## 주요 특징
-
-- **반응형 디자인**: 모바일/태블릿/데스크톱 지원
-- **실시간 업데이트**: 예약 상태 실시간 반영
-- **데이터 영속성**: localStorage를 통한 데이터 저장
-- **에러 처리**: 사용자 친화적인 에러 메시지
-- **접근성**: 키보드 네비게이션 및 스크린 리더 지원
-
-## 라이선스
-
-이 프로젝트는 MIT 라이선스 하에 배포됩니다.
+- React 18 + TypeScript
+- Vite
+- Tailwind CSS
+- Supabase (Database + Auth)
+- Vercel (Hosting)

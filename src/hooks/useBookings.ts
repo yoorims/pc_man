@@ -11,15 +11,15 @@ export function useBookings() {
   }, [bookings]);
 
   // 특정 날짜/시간대의 예약된 좌석 맵
-  const getOccupiedSeats = (date: string, slotHour: SlotHour) => {
-    return useMemo(() => {
+  const getOccupiedSeats = useMemo(() => 
+    (date: string, slotHour: SlotHour) => {
       const occupied = new Map<number, Booking>();
       bookings
         .filter((b) => b.date === date && b.slotHour === slotHour)
         .forEach((b) => occupied.set(b.pc, b));
       return occupied;
-    }, [bookings, date, slotHour]);
-  };
+    }, [bookings]
+  );
 
   // 예약 검증
   const validateBooking = (
@@ -100,14 +100,16 @@ export function useBookings() {
   };
 
   // 차단된 예약 자동 정리
-  const purgeBlockedBookings = (blockedWeekdays: number[], blockedSlots: number[]) => {
-    setBookings((prev) =>
-      prev.filter((b) => {
-        const dayOfWeek = new Date(`${b.date}T00:00:00`).getDay();
-        return !blockedWeekdays.includes(dayOfWeek) && !blockedSlots.includes(b.slotHour);
-      })
-    );
-  };
+  const purgeBlockedBookings = useMemo(() => 
+    (blockedWeekdays: number[], blockedSlots: number[]) => {
+      setBookings((prev) =>
+        prev.filter((b) => {
+          const dayOfWeek = new Date(`${b.date}T00:00:00`).getDay();
+          return !blockedWeekdays.includes(dayOfWeek) && !blockedSlots.includes(b.slotHour);
+        })
+      );
+    }, []
+  );
 
   return {
     bookings,

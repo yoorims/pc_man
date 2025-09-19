@@ -1,207 +1,186 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { todayStr } from "./utils";
-import { useBookings } from "./hooks/useBookings";
-import { useAdmin } from "./hooks/useAdmin";
-import SeatGrid from "./components/SeatGrid";
-import AdminPanel from "./components/AdminPanel";
-import ReservationForm from "./components/ReservationForm";
-import type { Booking, TabType, SlotHour } from "./types";
+import { useState } from 'react';
+import { useSupabaseBookings } from './hooks/useSupabaseBookings';
+import { useSupabaseAdmin } from './hooks/useSupabaseAdmin';
+import { useStudyRoom } from './hooks/useStudyRoom';
+import ReservationForm from './components/ReservationForm';
+import SeatGrid from './components/SeatGrid';
+import StudyRoomForm from './components/StudyRoomForm';
+import AdminPanel from './components/AdminPanel';
 
-export default function App() {
-  const [activeTab, setActiveTab] = useState<TabType>("user");
+function App() {
+  const [activeTab, setActiveTab] = useState<"user" | "admin">("user");
   const [selectedSeat, setSelectedSeat] = useState<number | null>(null);
-  const [date, setDate] = useState<string>(todayStr());
-  const [slotHour, setSlotHour] = useState<SlotHour>(18);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
+  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [selectedSlot, setSelectedSlot] = useState<number>(18);
+  
   const {
     bookings,
-    getOccupiedSeats,
-    validateBooking,
-    createBooking,
+    bookingsError,
     addBooking,
-    cancelBooking,
-    forceCancelBooking,
-    bulkCancelBookings,
-    purgeBlockedBookings
-  } = useBookings();
+    removeBooking,
+    isLoading: bookingsLoading
+  } = useSupabaseBookings();
+  
+  const {
+    adminSettings,
+    adminError,
+    updateNotice,
+    adminAuthed: isAuthenticated,
+    loginAdmin,
+    logout,
+    updatePin,
+    loading: adminLoading
+  } = useSupabaseAdmin();
 
   const {
-    adminPin,
-    notice,
-    webhookUrl,
-    blockedWeekdays,
-    blockedSlots,
-    adminAuthed,
-    setNotice,
-    setWebhookUrl,
-    setAdminAuthed,
-    changePin,
-    toggleWeekdayBlock,
-    toggleSlotBlock,
-    sendWebhook,
-    copyPhoneList,
-    openSmsApp
-  } = useAdmin();
+    sessions,
+    settings: studySettings,
+    activeByRoom,
+    startSession,
+    endSession,
+    updateSettings: updateStudySettings,
+  } = useStudyRoom();
 
-  const occupiedSeats = getOccupiedSeats(date, slotHour);
-  const todayISO = useMemo(() => todayStr(), []);
-  const isPastDate = useMemo(() => date < todayISO, [date, todayISO]);
+  // PC 세션 기능은 일단 비활성화 (테이블이 없을 수 있음)
+  // const {
+  //   sessions: pcSessions,
+  //   activeByPC,
+  //   startSession: startPCSession,
+  //   endSession: endPCSession,
+  // } = usePCSessions();
+  
+  const pcSessions: any[] = [];
+  const endPCSession = async () => {};
 
-  // 차단된 예약 자동 정리
-  useEffect(() => {
-    purgeBlockedBookings(blockedWeekdays, blockedSlots);
-  }, [blockedWeekdays, blockedSlots, purgeBlockedBookings]);
 
-  // 알림 초기화
-  const clearAlerts = () => {
-    setMessage(null);
-    setError(null);
-  };
-
-  // 예약 처리
-  const handleReserve = (bookingData: Booking) => {
-    clearAlerts();
-    const newBooking = createBooking(
-      bookingData.name,
-      bookingData.studentId,
-      bookingData.phone,
-      bookingData.department,
-      bookingData.date,
-      bookingData.slotHour,
-      bookingData.pc
+  if (bookingsLoading || adminLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">로딩 중...</p>
+        </div>
+      </div>
     );
-    addBooking(newBooking);
-    setMessage(`예약 완료: PC ${bookingData.pc} - ${bookingData.date} - ${bookingData.slotHour}:00-${bookingData.slotHour + 1}:00`);
-    setSelectedSeat(null);
-  };
+  }
 
-  // 예약 취소
-  const handleCancel = (bookingId: string) => {
-    clearAlerts();
-    cancelBooking(bookingId);
-    setMessage("예약이 취소되었습니다.");
-  };
-
-  // 좌석 선택
-  const handleSeatSelect = (seatNumber: number | null) => {
-    setSelectedSeat(seatNumber);
-  };
-
-  // 관리자 기능들
-  const handleForceCancel = (bookingId: string) => {
-    forceCancelBooking(bookingId);
-  };
-
-  const handleBulkCancel = (bookingIds: string[]) => {
-    bulkCancelBookings(bookingIds);
-  };
-
-  const handleSendWebhook = async (numbers: string[], message: string, cancelledIds: string[]) => {
-    return await sendWebhook(numbers, message, cancelledIds);
-  };
-
-  const handleCopyPhoneList = async (phoneList: string[]) => {
-    await copyPhoneList(phoneList);
-  };
-
-  const handleOpenSmsApp = (phoneNumber: string, message: string) => {
-    openSmsApp(phoneNumber, message);
-  };
-
-  const handleChangePin = (current: string, newPin: string) => {
-    return changePin(current, newPin);
-  };
+  if (bookingsError || adminError) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">연결 오류</h3>
+              <p className="mt-1 text-sm text-red-700">
+                {bookingsError || adminError}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-slate-200">
+    <div className="min-h-screen bg-gradient-to-br from-sky-50 to-sky-100 text-slate-900">
+      {/* 헤더 */}
+      <header className="sticky top-0 z-10 bg-white/70 backdrop-blur border-b border-sky-200">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">경제학과 PC실 예약</h1>
-            <div className="text-xs text-slate-600">No Sign-Up · 경제학과 전용 · 18:00-21:00</div>
-          </div>
-          <div className="mt-3 flex items-center gap-2">
-            <button
-              onClick={() => setActiveTab("user")}
-              className={`px-3 py-1.5 rounded-xl text-sm border ${
-                activeTab === "user" ? "bg-slate-900 text-white" : "bg-white"
-              }`}
-            >
-              예약
-            </button>
-            <button
-              onClick={() => setActiveTab("admin")}
-              className={`px-3 py-1.5 rounded-xl text-sm border ${
-                activeTab === "admin" ? "bg-slate-900 text-white" : "bg-white"
-              }`}
-            >
-              관리자
-            </button>
-          </div>
-          {notice && activeTab === "user" && (
-            <div className="mt-3 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 px-3 py-2 text-sm">
-              공지: {notice}
+            <h1 className="text-xl md:text-2xl font-bold text-sky-700">스터디룸 & PC실 예약</h1>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setActiveTab("user")} 
+                className={`px-3 py-1.5 rounded-xl text-sm border ${
+                  activeTab === 'user' 
+                    ? 'bg-sky-700 text-white border-sky-700' 
+                    : 'bg-white text-sky-700 border-sky-200 hover:bg-sky-50'
+                }`}
+              >
+                사용자
+              </button>
+              <button 
+                onClick={() => setActiveTab("admin")} 
+                className={`px-3 py-1.5 rounded-xl text-sm border ${
+                  activeTab === 'admin' 
+                    ? 'bg-sky-700 text-white border-sky-700' 
+                    : 'bg-white text-sky-700 border-sky-200 hover:bg-sky-50'
+                }`}
+              >
+                관리자
+              </button>
             </div>
-          )}
+          </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-6 grid xl:grid-cols-3 gap-6">
+      {/* 메인 콘텐츠 */}
+      <main className="max-w-7xl mx-auto p-4 space-y-8">
         {activeTab === "user" ? (
-          <>
-            <ReservationForm
-              selectedSeat={selectedSeat}
-              occupiedSeats={occupiedSeats}
-              blockedWeekdays={blockedWeekdays}
-              blockedSlots={blockedSlots}
-              onSeatSelect={handleSeatSelect}
-              onReserve={handleReserve}
-              onCancel={handleCancel}
-              onValidate={validateBooking}
-            />
-            <section className="xl:col-span-2 space-y-4">
-              <SeatGrid
-                selectedSeat={selectedSeat}
-                occupiedSeats={occupiedSeats}
-                isPastDate={isPastDate}
-                onSeatSelect={handleSeatSelect}
+          <div className="space-y-8">
+            {/* 스터디룸 */}
+            <div>
+              <StudyRoomForm
+                activeByRoom={activeByRoom}
+                settings={studySettings}
+                onStartSession={startSession}
+                onEndSession={endSession}
               />
-              <div className="bg-white rounded-2xl shadow p-4 text-xs text-slate-600">
-                <div>
-                  안내: 예약 가능 시간은 18:00-21:00이며, 1시간 단위로 예약됩니다. 57-60번은 예약이 불가합니다. 좌석별 예약입니다 (동일 시간대 여러 좌석 예약 가능).
-                </div>
+            </div>
+
+            {/* PC실 예약 시스템 */}
+            <div className="grid lg:grid-cols-3 gap-6">
+              {/* PC실 예약 폼 (왼쪽) */}
+              <div className="lg:col-span-1">
+                <ReservationForm
+                  selectedSeat={selectedSeat}
+                  onAddBooking={addBooking}
+                  blockedWeekdays={adminSettings?.blocked_weekdays || []}
+                  blockedSlots={adminSettings?.blocked_slots || []}
+                  onDateChange={setSelectedDate}
+                  onSlotChange={setSelectedSlot}
+                />
               </div>
-            </section>
-          </>
+              
+              {/* PC실 좌석 배치도 (오른쪽) */}
+              <div className="lg:col-span-2">
+                <SeatGrid
+                  selectedSeat={selectedSeat}
+                  occupiedSeats={bookings}
+                  onSeatSelect={setSelectedSeat}
+                  onRemoveBooking={removeBooking}
+                  selectedDate={selectedDate}
+                  selectedSlot={selectedSlot}
+                />
+              </div>
+            </div>
+          </div>
         ) : (
-          <section className="xl:col-span-3">
-            <AdminPanel
-              bookings={bookings}
-              onForceCancel={handleForceCancel}
-              onBulkCancel={handleBulkCancel}
-              adminPin={adminPin}
-              notice={notice}
-              webhookUrl={webhookUrl}
-              blockedWeekdays={blockedWeekdays}
-              blockedSlots={blockedSlots}
-              onNoticeChange={setNotice}
-              onWebhookUrlChange={setWebhookUrl}
-              onToggleWeekdayBlock={toggleWeekdayBlock}
-              onToggleSlotBlock={toggleSlotBlock}
-              onChangePin={handleChangePin}
-              onSendWebhook={handleSendWebhook}
-              onCopyPhoneList={handleCopyPhoneList}
-              onOpenSmsApp={handleOpenSmsApp}
-            />
-          </section>
+                <AdminPanel
+                  adminSettings={adminSettings}
+                  isAuthenticated={isAuthenticated}
+                  onLogin={loginAdmin}
+                  onLogout={logout}
+                  onUpdateNotice={updateNotice}
+                  sessions={sessions}
+                  studySettings={studySettings}
+                  onEndSession={endSession}
+                  onUpdateStudySettings={updateStudySettings}
+                  pcBookings={bookings}
+                  onRemoveBooking={removeBooking}
+                  pcSessions={pcSessions}
+                  onEndPCSession={endPCSession}
+                  onUpdatePin={updatePin}
+                />
         )}
       </main>
-
-      <footer className="max-w-7xl mx-auto px-4 pb-10 pt-2 text-xs text-slate-500">
-        <div>경제학과 학생 전용 · 이름/학번/전화/학과 입력 필수 · 3개 시간대 (18/19/20시 시작)</div>
-      </footer>
     </div>
   );
 }
+
+export default App;
